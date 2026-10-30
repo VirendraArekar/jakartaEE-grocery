@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grocery-config
+  namespace: grocery-system
+data:
+  DB_HOST: "mssql-service"
+  DB_PORT: "1433"
+  DB_NAME: "grocerydb"
+  DB_USER: "sa"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  SPRING_PROFILES_ACTIVE: "default"
+  NEXT_PUBLIC_API_URL: "/api"
+  INTERNAL_BACKEND_URL: "http://backend-service:8080"
+

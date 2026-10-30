@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: grocery-system
+
+resources:
+  - 00-namespace.yaml
+  - 01-secrets.yaml
+  - 02-configmap.yaml
+  - 10-mssql-pvc.yaml
+  - 11-mssql-deployment.yaml
+  - 12-mssql-service.yaml
+  - 20-redis-pvc.yaml
+  - 21-redis-deployment.yaml
+  - 22-redis-service.yaml
+  - 30-backend-deployment.yaml
+  - 31-backend-service.yaml
+  - 40-frontend-deployment.yaml
+  - 41-frontend-service.yaml
+  - 50-ingress.yaml
+

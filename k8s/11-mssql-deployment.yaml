@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mssql-deployment
+  namespace: grocery-system
+  labels:
+    app: mssql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # Required for ReadWriteOnce volumes to unmount cleanly before reattaching
+  selector:
+    matchLabels:
+      app: mssql
+  template:
+    metadata:
+      labels:
+        app: mssql
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: mssql
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: MSSQL_PID
+              value: "Developer"
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grocery-secrets
+                  key: MSSQL_SA_PASSWORD
+            - name: MSSQL_TCP_PORT
+              value: "1433"
+          ports:
+            - containerPort: 1433
+              name: mssql
+          resources:
+            requests:
+              memory: "1536Mi"
+              cpu: "500m"
+            limits:
+              memory: "3072Mi"
+              cpu: "2000m"
+          volumeMounts:
+            # Mount PersistentVolume to preserve databases across container restarts
+            - name: mssql-storage
+              mountPath: /var/opt/mssql
+          readinessProbe:
+            tcpSocket:
+              port: 1433
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 1433
+            initialDelaySeconds: 40
+            periodSeconds: 15
+      volumes:
+        - name: mssql-storage
+          persistentVolumeClaim:
+            claimName: mssql-pvc
+

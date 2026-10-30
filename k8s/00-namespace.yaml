@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grocery-system
+  labels:
+    app.kubernetes.io/name: freshcart-grocery
+    app.kubernetes.io/part-of: freshcart
+
