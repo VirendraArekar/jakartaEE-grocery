@@ -1,0 +1,141 @@
+services:
+  # ============================================================================
+  # Microsoft SQL Server (with Persistent Volume)
+  # ============================================================================
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: freshcart-mssql
+    user: root
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Grocery@2026StrongPass"
+      MSSQL_PID: "Developer"
+      MSSQL_TCP_PORT: 1433
+    ports:
+      - "1433:1433"
+    volumes:
+      # Named volume guarantees database data persistence across container restarts
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "(/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Grocery@2026StrongPass' -C -Q 'SELECT 1' 2>/dev/null || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Grocery@2026StrongPass' -Q 'SELECT 1' 2>/dev/null || bash -c '</dev/tcp/127.0.0.1/1433') || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      - grocery-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # Database Initializer (Guarantees 'grocerydb' exists on first run)
+  # ============================================================================
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: freshcart-mssql-init
+    depends_on:
+      mssql:
+        condition: service_healthy
+    entrypoint: >
+      /bin/bash -c "
+      /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P 'Grocery@2026StrongPass' -C -Q \"IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'grocerydb') CREATE DATABASE grocerydb;\"
+      echo 'Database grocerydb verified/created successfully!'
+      "
+    networks:
+      - grocery-network
+    restart: "no"
+
+  # ============================================================================
+  # Redis In-Memory Cache (with Append-Only File Persistence)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: freshcart-redis
+    command: redis-server --appendonly yes --requirepass ""
+    ports:
+      - "6379:6379"
+    volumes:
+      # Named volume for Redis snapshots & AOF logs
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - grocery-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # Spring Boot Backend (Java 17 / Jakarta EE 10 / Spring Data / JPA)
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: freshcart-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      DB_HOST: mssql
+      DB_PORT: 1433
+      DB_NAME: grocerydb
+      DB_USER: sa
+      DB_PASSWORD: "Grocery@2026StrongPass"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JAVA_OPTS: "-Xms256m -Xmx768m"
+    ports:
+      - "${BACKEND_PORT:-8088}:8080"
+    depends_on:
+      mssql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mssql-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    networks:
+      - grocery-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # Next.js Frontend (React 18 / Tailwind CSS / Lucide)
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: freshcart-frontend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:8088/api
+      INTERNAL_BACKEND_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - grocery-network
+    restart: unless-stopped
+
+# ==============================================================================
+# Persistent Volumes (Preserves DB and Cache data across rebuilds)
+# ==============================================================================
+volumes:
+  mssql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ==============================================================================
+# Internal Bridge Network
+# ==============================================================================
+networks:
+  grocery-network:
+    driver: bridge
+
