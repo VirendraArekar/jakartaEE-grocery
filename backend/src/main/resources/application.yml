@@ -1,0 +1,77 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: grocery-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
+
+  # Microsoft SQL Server Datasource Configuration
+  datasource:
+    url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=${DB_NAME:grocerydb};encrypt=true;trustServerCertificate=true;sendStringParametersAsUnicode=false;
+    username: ${DB_USER:sa}
+    password: ${DB_PASSWORD:Grocery@2026StrongPass}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      connection-timeout: 30000
+      minimum-idle: 5
+      maximum-pool-size: 15
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # Jakarta Persistence (JPA) / Hibernate Configuration
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  # Redis Cache Configuration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: 3000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000 # 10 minutes cache TTL
+      cache-null-values: false
+
+# Management & Health Probes (Used by Kubernetes Liveness & Readiness Probes)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.grocery: DEBUG
+    org.hibernate.SQL: INFO
+    org.springframework.cache: DEBUG
+
